@@ -21,3 +21,8 @@ Using CRC-CARAMeL requires the installation of the following packages/programs.
 
 # Installation 
 Install the folders and packages included by cloning this repository to your local computer
+
+git clone https://github.com/anniejs02/CRC_CARAMeL.git
+
+# Instructions 
+See CRC_CARAMEL_main.m or CRC_CARAMEL_main.mlx for step-by-step instructions in applying CRC_CARAMeL. To run those files in MATLAB, you must download the contents of 'data' and 'emptyng_testing_files' and have an appropriate human metabolic model. 
