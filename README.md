@@ -4,7 +4,7 @@ This tool allows for predicting the effect of multi-drug combinations on colorec
 
 <img width="3000" height="2100" alt="Untitled (91)" src="https://github.com/user-attachments/assets/f41fd422-2d44-44ba-87d0-c2910f3ef078" />
 
-This model can be used along with the included drug combination files (sourced from [SynergyxDB]([url](https://www.synergxdb.ca/))). Additional drug or microbial treatments can also be added to make novel predictions. 
+This model can be used along with the included drug combination files (sourced from [SynergyxDB]([url](https://www.synergxdb.ca/))). Additional drug or microbial treatments can also be added to make novel predictions by adding log fold changes of gene expression in treatment compared to control to the included gene expression file. 
 
 
 The basic approach of this model was adapted from CARAMeL (Condition-specific Antibiotic Regimen Assessment using Mechanistic Learning), which was used for antibioitic combination predictions (source:  Carolina H Chung, Sriram Chandrasekaran, A flux-based machine learning model to simulate the impact of pathogen metabolic heterogeneity on drug interactions, PNAS Nexus, Volume 1, Issue 3, July 2022, pgac132, https://doi.org/10.1093/pnasnexus/pgac132). 
