@@ -2,7 +2,9 @@
 Welcome to CRC-CARAMeL: Colorectal Cancer Condition-specific Anticancer Regimen Assessment using Mechanistic Learning. This guide walks you through setting up and running CRC-CARAMeL in MATLAB. 
 This tool allows for predicting the effect of multi-drug combinations on colorectal cancer (CRC) and the effect of microorganisms on treatment responses.
 
-<img width="3000" height="2100" alt="Untitled (91)" src="https://github.com/user-attachments/assets/f41fd422-2d44-44ba-87d0-c2910f3ef078" />
+
+<img width="862" height="875" alt="image" src="https://github.com/user-attachments/assets/7a16019c-750f-400c-aa9e-bc555e6ccc27" />
+
 
 This model can be used along with the included drug combination files (sourced from [SynergyxDB]([url](https://www.synergxdb.ca/))). Additional drug or microbial treatments can also be added to make novel predictions by adding log fold changes of gene expression in treatment compared to control to the included gene expression file. 
 
