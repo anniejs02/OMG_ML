@@ -1,5 +1,5 @@
-# CRC_CARAMeL
-Welcome to CRC-CARAMeL: Colorectal Cancer Condition-specific Anticancer Regimen Assessment using Mechanistic Learning. This guide walks you through setting up and running CRC-CARAMeL in MATLAB. 
+# Onco Microbiome GEM Machine Learning (OMG-ML)
+Welcome to CRC-CARAMeL: Colorectal Cancer Condition-specific Anticancer Regimen Assessment using Mechanistic Learning. This guide walks you through setting up and running OMG-ML in MATLAB. 
 This tool allows for predicting the effect of multi-drug combinations on colorectal cancer (CRC) and the effect of microorganisms on treatment responses.
 
 
