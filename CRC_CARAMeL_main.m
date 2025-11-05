@@ -1,5 +1,5 @@
-%% CRC-CARAMeL
-% CRC-CARAMeL is a Flux Balance Analysis + Machine learning framework to predict 
+%% OMG-ML
+% OMG-ML is a Flux Balance Analysis + Machine learning framework to predict 
 % effective drug combination and microbiome based therapies for colorectal cancer. 
 % This begins by importing the training data (known drug combination synergies) 
 % and generating flux data via flux balance analysis (derive_flux). Term 'bug' 
