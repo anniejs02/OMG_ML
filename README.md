@@ -34,6 +34,7 @@ See CRC_CARAMEL_main.m or CRC_CARAMEL_main.mlx for step-by-step instructions in 
 # Files
 
 
+<pre><code>
 OMGML
 ├── code/                        # Contains all relevant code files
 │   ├── CARAMeL_suite/           # Scripts implementing the CARAMeL approach
@@ -64,6 +65,7 @@ OMGML
 ├── OMGML_main.mlx               # MATLAB Live Script for OMGML paper predictions
 ├── OMGML_main.m                 # MATLAB script version for OMGML paper predictions
 └── figure_clean.rmd             # R code for all figures included in manuscript
+</code></pre>
 
 
 
