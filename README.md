@@ -62,4 +62,5 @@ OMGML
 │   └── logfc_geneexp.csv                    # Log fold-change gene expression data
 ├── OMGML_main.mlx               # MATLAB Live Script for OMGML paper predictions
 └── OMGML_main.m                 # MATLAB script version for OMGML paper predictions
+|__ figure_clean.rmd             # R code for all figures included in manuscript
 
