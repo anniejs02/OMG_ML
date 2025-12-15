@@ -1,0 +1,49 @@
+rxn,rxnName,subSystem,Pvalue,Direction,Interaction,Rank
+HMR_4592,"Xylitol:NADP+ Oxidoreductase",Pentose phosphate pathway,4.83624774321737e-88,pos,Sy,1
+r0394,"Xanthine:NAD+ Oxidoreductase",Nucleotide interconversion,2.21566869054448e-73,pos,Sy,2
+HMR_5389,"1, 2-Dihydroxy-5- (Methylthio)Pent-1-En-3-One:Oxygen Oxidoreductase (Formate-Forming)",Methionine and cysteine metabolism,2.47289990817995e-72,pos,Sy,3
+HMR_5387,"5- (Methylthio)-2, 3-Dioxopentyl-Phosphate Phosphohydrolase (Isomerizing)",Methionine and cysteine metabolism,2.47289990817995e-72,pos,Sy,4
+PROSTGE2t2,"Prostaglandin Uniport","Transport, extracellular",5.27750629528574e-66,neg,Sy,5
+ACRNtr,"Transport of Acetyl Carnitine","Transport, extracellular",1.15558756424839e-57,pos,Sy,6
+EX_melatn[e],"Exchange of Melatonine",Exchange/demand reaction,7.45605302592969e-57,pos,Sy,7
+MELATNte,"Melatonin Diffusion, Cytosol","Transport, extracellular",7.45605302592969e-57,pos,Sy,8
+TCHOLAte,"Bile Acid Intracellular Transport","Transport, extracellular",3.92760294545895e-56,neg,Sy,9
+MALSO4tm,"Malate:Sulfate Antiport, Mitochondrial","Transport, mitochondrial",3.43192019164976e-51,neg,Sy,10
+r2080,"Major Facilitator (Mfs) Tcdb:2.A.1.13.1","Transport, extracellular",3.43192019164976e-51,neg,Sy,11
+FACOAL1812,"Fatty-Acid- Coenzyme A Ligase",Fatty acid oxidation,5.34041363051176e-43,pos,Sy,12
+LCA3GSc,"UDP-Glucuronosyltransferase (UGT) cytosolic (lithocholic acid)",Bile acid synthesis,5.47798248992256e-42,pos,Sy,13
+LCA24GSc,"UDP-Glucuronosyltransferase (UGT) cytosolic (lithocholic acid)",Bile acid synthesis,5.47798248992256e-42,pos,Sy,14
+DM_lca3g[c],"DM_lca3g(c)",Exchange/demand reaction,5.47798248992256e-42,pos,Sy,15
+MI145PK,"Inositol-1, 4, 5-Trisphosphate 3-Kinase",Inositol phosphate metabolism,4.57007411895956e-36,pos,Sy,16
+MI134PP,"Inositol-1, 3, 4-Trisphosphate 1-Phosphatase",Inositol phosphate metabolism,4.57007411895956e-36,pos,Sy,17
+MI34PP,"Inositol-3, 4-Bisphosphate 4-Phosphatase",Inositol phosphate metabolism,4.57007411895956e-36,pos,Sy,18
+FBA,"Fructose-Bisphosphate Aldolase",Glycolysis/gluconeogenesis,2.45901170404853e-35,pos,Sy,19
+S4T2g,"Chondroitin 4-Sulfotransferase, Golgi Apparatus",Chondroitin synthesis,4.14340265858957e-35,pos,Sy,20
+GALNACT2g,"Uridine Diphosphoacetylgalactosamine-Chondroitin Acetylgalactosaminyltransferase Ii, Golgi",Chondroitin synthesis,4.14340265858957e-35,pos,Sy,21
+HMR_0807,"Beta-N-Acetylhexosaminidase",Glycosphingolipid metabolism,5.25405336769476e-32,pos,Sy,22
+EX_galgluside_hs[e],"Exchange of Galactosyl Glucosyl Ceramide",Miscellaneous,5.998561716261e-31,pos,Sy,23
+DCHOLESTANCOAc,"Activation of Bile Acid, 3A, 7A-Dihydroxycoprostanic Acid",Bile acid synthesis,1.54314254629497e-30,pos,Sy,24
+FAOXC1811603m,"Beta Oxidation Fatty Acid",Fatty acid oxidation,3.65474255352458e-30,pos,Sy,25
+EX_leuktrA4[e],"Exchange of Leukotriene A4 ",Exchange/demand reaction,4.07931988141597e-30,pos,Sy,26
+r0630,"Choloyl Coenzyme A:Glycine N-Choloyltransferase Bile Acid Biosynthesis ",Bile acid synthesis,5.86067388559727e-27,neg,Sy,27
+MI3PP,"Myo-Inositol 3-Phosphatase",Inositol phosphate metabolism,2.3228165217594e-25,pos,Sy,28
+r2316,"Resistance-Nodulation-Cell Division (Rnd) Tcdb:2.A.60.1.2","Transport, extracellular",7.72508175095576e-25,neg,Sy,29
+ICDHxm,"Isocitrate Dehydrogenase (NAD+)",Citric acid cycle,8.41216298975098e-22,pos,Sy,30
+HEXDIACtr,"Transport of Hexadecanedioc Acid by Diffusion",Fatty acid oxidation,7.10911347312255e-20,pos,Sy,31
+r2312,"Resistance-Nodulation-Cell Division (Rnd) Tcdb:2.A.60.1.14","Transport, extracellular",6.43227317977606e-18,neg,Sy,32
+CO2tp,"CO2 Peroxisomal Transport","Transport, peroxisomal",1.21245203520826e-16,pos,Sy,33
+S4TASE2ly,"N-Acetylgalactosamine-4-Sulfatase, Lysosomal",Chondroitin sulfate degradation,2.13779226008387e-14,pos,Sy,34
+LINKDEG2ly,"Degradation of Proteoglycan Linkage Region, Lysosomal",Chondroitin sulfate degradation,2.13779226008387e-14,pos,Sy,35
+NACHEX2ly,"Beta-N-Acetylhexosaminidase, Lysosomal",Chondroitin sulfate degradation,2.13779226008387e-14,pos,Sy,36
+H2OGLYAQPt,"Water And Glycerol Transport by Aqp","Transport, extracellular",7.77037304210129e-11,pos,Sy,37
+Htx,"H Transporter, Peroxisome","Transport, peroxisomal",3.24066111534552e-09,pos,Sy,38
+EX_ametam[e],"Exchange of S-Adenosylmethioninamine",Exchange/demand reaction,3.59988914035194e-08,pos,Sy,39
+AMETAMte,"Assumed Passive Diffusion into Extracellular Space","Transport, extracellular",3.59988914035194e-08,pos,Sy,40
+PPItm,"Diphopshate Transporter, Mitochondrial","Transport, mitochondrial",3.69783822899584e-06,pos,Sy,41
+HC00006te,"Transport of Apo C1, Extracellular","Transport, extracellular",6.11080152608138e-06,pos,Sy,42
+C16DCe,"Transport of Hexadecanedioic Acid Mono-L-Carnitine Ester into Extra Cellular Space",Fatty acid oxidation,1.25862997361175e-05,pos,Sy,43
+PE_HStm,"Phosphatidylethanolamine Scramblase","Transport, mitochondrial",0.000156832397809896,pos,Sy,44
+EX_uri[e],"Exchange of Uridine",Exchange/demand reaction,0.00080272374720999,pos,Sy,45
+HMR_2281,"Stearoyl Coenzyme A 9-Desaturase",Fatty acid synthesis,0.00598308436880504,pos,A,46
+r0446,"Palmitoyl Coenzyme A:L-Carnitine O-Palmitoyltransferase",Fatty acid oxidation,0.116146681503577,NA,NS,47
+H2Otm,"H2O Transport, Mitochondrial","Transport, mitochondrial",0.264913429362523,NA,NS,48
