@@ -33,6 +33,7 @@ See CRC_CARAMEL_main.m or CRC_CARAMEL_main.mlx for step-by-step instructions in 
 
 # Files
 
+
 OMGML
 ├── code/                        # Contains all relevant code files
 │   ├── CARAMeL_suite/           # Scripts implementing the CARAMeL approach
@@ -62,5 +63,6 @@ OMGML
 │   └── logfc_geneexp.csv                    # Log fold-change gene expression data
 ├── OMGML_main.mlx               # MATLAB Live Script for OMGML paper predictions
 └── OMGML_main.m                 # MATLAB script version for OMGML paper predictions
-|__ figure_clean.rmd             # R code for all figures included in manuscript
+└── figure_clean.rmd             # R code for all figures included in manuscript
+
 
