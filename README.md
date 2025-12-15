@@ -62,6 +62,7 @@ OMGML
 │   ├── hct116_fn_single_drug.xlsx           # Single drug + F. nucleatum input file
 │   ├── ht29_fuso_1drug.xlsx                 # Single drug + F. nucleatum input file
 │   └── logfc_geneexp.csv                    # Log fold-change gene expression data
+|   |-- Recon3D_Files                        # Contains equivelent files to other predictions but using RECON3D rather than RECON1 
 ├── OMGML_main.mlx               # MATLAB Live Script for OMGML paper predictions
 ├── OMGML_main.m                 # MATLAB script version for OMGML paper predictions
 └── figure_clean.rmd             # R code for all figures included in manuscript
