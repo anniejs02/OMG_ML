@@ -36,7 +36,7 @@ See CRC_CARAMEL_main.m or CRC_CARAMEL_main.mlx for step-by-step instructions in 
 
 <pre><code>
 OMGML
-├── code/                        # Contains all relevant code files
+├── functions/                        # Contains all relevant code files
 │   ├── CARAMeL_suite/           # Scripts implementing the CARAMeL approach
 │   │   ├── caramel.m                        # Main script that constructs a CARAMeL model
 │   │   ├── caramel_anova.m                  # One-way ANOVA to identify differential flux reactions
@@ -57,15 +57,15 @@ OMGML
 │       ├── constrain_flux_regulation.m      # Simulates fluxes with omics constraints
 │       ├── derive_flux.m                    # Derives flux simulations for given conditions
 │       └── process_flux.m                   # Processes flux data for CARAMeL model use
-├── data/                        # Contains all data files used for OMG-ML model development
-│   ├── all_training_combinations.csv        # SynergyXDB drug synergy data for HT29/HCT116
-│   ├── hct116_fn_single_drug.xlsx           # Single drug + F. nucleatum input file
-│   ├── ht29_fuso_1drug.xlsx                 # Single drug + F. nucleatum input file
-│   └── logfc_geneexp.csv                    # Log fold-change gene expression data
-|   |-- Recon3D_Files                        # Contains equivelent files to other predictions but using RECON3D rather than RECON1 
+├── predictions/                  # All prediction output files and folders
+│   ├── prediction_1microbe_1drug/           # Original folder moved here
+│   ├── prediction_2drugs_1microbe/          # Original folder moved here
+│   ├── hct116_2d_pred.xlsx                    # Renamed prediction file
+│   └── MOREMICROBES_averaged_10predictions_HCT116.xlsx  # Newly added predictions file
 ├── OMGML_main.mlx               # MATLAB Live Script for OMGML paper predictions
 ├── OMGML_main.m                 # MATLAB script version for OMGML paper predictions
 └── figure_clean.rmd             # R code for all figures included in manuscript
+
 </code></pre>
 
 
