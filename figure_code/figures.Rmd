@@ -1,0 +1,1890 @@
+---
+title: "Figures"
+output:
+  html_notebook:
+    toc: true
+    toc_depth: 3
+params:
+  data_dir: "C:/Users/ajsto/OneDrive/Documents"
+  downloads_dir: "C:/Users/ajsto/Downloads"
+  out_dir: "C:/Users/ajsto/OneDrive/Documents/figures_out"
+  seed: 123
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.retina = 2
+)
+
+# Create output dir
+if (!dir.exists(params$out_dir)) dir.create(params$out_dir, recursive = TRUE)
+
+# Core libraries (load once)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(purrr)
+library(ggplot2)
+library(ggrepel)
+library(readxl)
+library(openxlsx)
+library(ggpubr)
+library(Metrics)
+library(caret)
+library(pROC)
+library(pheatmap)
+library(forcats)
+library(umap)
+
+theme_set(theme_minimal(base_size = 12))
+
+#---------------------------
+# Helper utilities
+#---------------------------
+
+path_in <- function(...) file.path(params$data_dir, ...)
+path_dl <- function(...) file.path(params$downloads_dir, ...)
+path_out <- function(...) file.path(params$out_dir, ...)
+
+clean_names_simple <- function(x) {
+  x %>%
+    as.character() %>%
+    str_squish() %>%
+    str_to_lower()
+}
+
+# Drug combo key so A+B == B+A
+combo_key <- function(a, b) {
+  a <- clean_names_simple(a)
+  b <- clean_names_simple(b)
+  map2_chr(a, b, ~ paste(sort(c(.x, .y)), collapse = "_"))
+}
+
+# Remove rows where any cell contains "log2foldchange" (your original filter)
+drop_log2fc_rows <- function(df) {
+  df %>%
+    filter(!if_any(everything(), ~ str_detect(as.character(.x), fixed("log2foldchange", ignore_case = TRUE))))
+}
+
+# Standardize interaction labels for matching (drug + fuso validation)
+clean_interaction <- function(x) {
+  x %>%
+    clean_names_simple() %>%
+    str_replace_all("\\s*\\+\\s*", " + ") %>%
+    str_replace_all("\\s+", " ") %>%
+    str_replace_all("fusobacterium\\s*n[ui]cleat?um", "f. nucleatum") %>%
+    str_replace_all("\\bf\\.?\\s*n[ui]cleat?um\\b", "f. nucleatum") %>%
+    str_replace_all("\\b5-?fu\\b", "fluorouracil") %>%
+    str_trim()
+}
+
+save_pdf <- function(filename, plot, width = 7, height = 5) {
+  ggsave(
+    filename = path_out(filename),
+    plot = plot,
+    device = cairo_pdf,
+    width = width,
+    height = height,
+    dpi = 300
+  )
+}
+```
+
+
+Inputs 
+```{r}
+# 2-drug predictions
+
+ht29_2d <- read.xlsx(path_in("MOREMICROBES_ht29_2d_pred.xlsx"))
+hct_2d  <- read.xlsx(path_in("MOREMICROBES_averaged_10predictions_HCT116.xlsx"))
+
+# single drug + fuso predictions
+
+hct_fuso  <- read.xlsx(path_in("MOREMICROBES_hct_fuso.xlsx"))
+ht29_fuso <- read.xlsx(path_in("MOREMICROBES_ht29_fuso_1d.xlsx"))
+
+# validation
+
+two_drug_res   <- read.xlsx(path_in("synergyfinder_validation_res.xlsx"))
+fuso_lab_res   <- read.xlsx(path_in("fuso_lab_res.xlsx"))
+fuso_validation <- read.xlsx(path_in("fuso_validation.xlsx"))
+
+# flux + topfeatures
+
+drug_flux   <- read.csv(path_in("MOREMICROBES_fluxcombined.csv"))
+topfeatures <- read.csv(path_in("MOREMICROBES_topfeatures_fusomodel.csv"))
+
+# basic cleaning
+
+hct_2d  <- drop_log2fc_rows(hct_2d)
+ht29_2d <- drop_log2fc_rows(ht29_2d)
+
+# standardize common columns (safe even if already lowercase)
+
+hct_2d  <- hct_2d  %>% mutate(across(c(Drug1, Drug2), clean_names_simple))
+ht29_2d <- ht29_2d %>% mutate(across(c(Drug1, Drug2), clean_names_simple))
+
+```
+
+Figure 1b & Figure 2C 
+```{r}
+merged_2d <- inner_join(hct_2d, ht29_2d, by = c("Drug1", "Drug2"), suffix = c("_HCT", "_HT29"))
+
+pearson_r <- cor(merged_2d$PredScores_HCT, merged_2d$PredScores_HT29, use = "complete.obs")
+
+p <- ggplot(merged_2d, aes(x = PredScores_HCT, y = PredScores_HT29)) +
+geom_point(alpha = 0.6) +
+geom_smooth(method = "lm", se = FALSE) +
+labs(
+title = paste0("PredScores: HCT116 vs HT29 (r = ", round(pearson_r, 3), ")"),
+x = "HCT116 PredScores",
+y = "HT29 PredScores"
+)
+
+p
+save_pdf("MOREMICROBES_PredScores_HCT_vs_HT29.pdf", p, width = 8, height = 6)
+
+highlighted <- c("cabazitaxel","megestrol","fluorouracil","methotrexate","ixabepilone","paclitaxel")
+
+merged_2d_hl <- merged_2d %>%
+mutate(
+highlight = case_when(
+Drug1 %in% highlighted ~ str_to_title(Drug1),
+Drug2 %in% highlighted ~ str_to_title(Drug2),
+TRUE ~ "Other"
+)
+)
+
+p_hl <- ggplot() +
+geom_point(
+data = merged_2d_hl %>% filter(highlight == "Other"),
+aes(PredScores_HCT, PredScores_HT29),
+alpha = 0.4,
+color = "gray80"
+) +
+geom_point(
+data = merged_2d_hl %>% filter(highlight != "Other"),
+aes(PredScores_HCT, PredScores_HT29, color = highlight),
+alpha = 0.9
+) +
+geom_smooth(
+data = merged_2d_hl,
+aes(PredScores_HCT, PredScores_HT29),
+method = "lm", se = FALSE, linetype = "dashed", color = "black"
+) +
+labs(
+title = "PredScores: HCT116 vs HT29 (highlighted drugs)",
+x = "HCT116 PredScores",
+y = "HT29 PredScores",
+color = "Drug"
+)
+
+p_hl
+save_pdf("MOREMICROBES_PredScores_HCT_vs_HT29_highlighted.pdf", p_hl, width = 8, height = 6)
+
+```
+
+Figure 2d
+```{r}
+hct_fuso2  <- hct_fuso  %>% rename(Pred_HCT = PredScores)  %>% mutate(Drug = clean_names_simple(Drug))
+ht29_fuso2 <- ht29_fuso %>% rename(Pred_HT29 = PredScores) %>% mutate(Drug = clean_names_simple(Drug))
+
+merged_fuso <- inner_join(hct_fuso2, ht29_fuso2, by = "Drug")
+
+highlight_drugs <- c("fluorouracil","capecitabine","cabazitaxel","ixabepilone")
+
+merged_fuso <- merged_fuso %>%
+mutate(highlight = if_else(Drug %in% highlight_drugs, Drug, NA_character_))
+
+p_fuso <- ggplot(merged_fuso, aes(x = Pred_HT29, y = Pred_HCT)) +
+geom_point(color = "gray70", size = 2.8) +
+geom_point(
+data = merged_fuso %>% filter(!is.na(highlight)),
+aes(color = highlight),
+size = 3
+) +
+geom_text_repel(
+data = merged_fuso %>% filter(!is.na(highlight)),
+aes(label = highlight, color = highlight),
+size = 3,
+show.legend = FALSE
+) +
+labs(
+title = "Predicted scores for Drug + F. nucleatum",
+x = "HT29: predicted score",
+y = "HCT116: predicted score",
+color = "Drug"
+)
+
+p_fuso
+save_pdf("MOREMICROBES_drugsofinterest_withfuso.pdf", p_fuso, width = 8, height = 6)
+
+```
+
+Figure 1c and Figure 1d
+```{r}
+train_df <- read.csv(path_in("all_training_combinations.csv"))
+loewe_hct <- read.csv(path_dl("HCT 116 (2).csv"))
+loewe_ht29 <- read.csv(path_dl("HT-29 (3).csv"))
+
+get_novel_combos <- function(pred_df, train_df_cell) {
+pred_df  <- pred_df %>% mutate(across(c(Drug1, Drug2), clean_names_simple))
+train_df_cell <- train_df_cell %>% mutate(across(c(Drug1, Drug2), clean_names_simple))
+
+train_keys <- combo_key(train_df_cell$Drug1, train_df_cell$Drug2)
+pred_keys  <- combo_key(pred_df$Drug1, pred_df$Drug2)
+
+pred_df %>%
+mutate(combo_key = pred_keys) %>%
+filter(combo_key %in% setdiff(pred_keys, train_keys))
+}
+
+merge_with_loewe <- function(novel_df, loewe_df, cell_line) {
+loewe_df2 <- loewe_df %>%
+mutate(
+Drug1 = clean_names_simple(Compound.A),
+Drug2 = clean_names_simple(Compound.B),
+combo_key = combo_key(Drug1, Drug2),
+Loewe = as.numeric(Loewe)
+)
+
+novel_df %>%
+left_join(loewe_df2 %>% select(combo_key, Loewe), by = "combo_key") %>%
+mutate(CellLine = cell_line) %>%
+filter(!is.na(PredScores), !is.na(Loewe))
+}
+
+train_hct  <- train_df %>% filter(clean_names_simple(Drug3) == "hct116")
+train_ht29 <- train_df %>% filter(is.na(Drug3) | str_trim(Drug3) == "")
+
+novel_hct  <- get_novel_combos(hct_2d,  train_hct)
+novel_ht29 <- get_novel_combos(ht29_2d, train_ht29)
+
+novel_hct2  <- merge_with_loewe(novel_hct,  loewe_hct,  "HCT116")
+novel_ht292 <- merge_with_loewe(novel_ht29, loewe_ht29, "HT29")
+
+plot_pred_vs_loewe <- function(df, title) {
+r <- cor(df$PredScores, df$Loewe, use = "complete.obs")
+ggplot(df, aes(x = as.numeric(PredScores), y = as.numeric(Loewe))) +
+geom_point(alpha = 0.7) +
+geom_smooth(method = "lm", se = FALSE) +
+labs(title = paste0(title, " (r = ", round(r, 3), ")"),
+x = "Predicted synergy score",
+y = "Loewe score")
+}
+
+p_hct <- plot_pred_vs_loewe(novel_hct2,  "Novel combos: Predicted vs Loewe (HCT116)")
+p_ht29 <- plot_pred_vs_loewe(novel_ht292, "Novel combos: Predicted vs Loewe (HT29)")
+
+p_hct
+p_ht29
+
+save_pdf("novel_pred_vs_loewe_HCT116.pdf", p_hct, width = 7, height = 5)
+save_pdf("novel_pred_vs_loewe_HT29.pdf",  p_ht29, width = 7, height = 5)
+
+
+calc_regression_metrics <- function(df) {
+true_vals <- as.numeric(df$Loewe)
+pred_vals <- as.numeric(df$PredScores)
+list(
+RMSE = rmse(true_vals, pred_vals),
+MAE  = mae(true_vals, pred_vals),
+R2   = cor(true_vals, pred_vals)^2
+)
+}
+
+calc_classification_metrics <- function(df, threshold = -0.25) {
+true_vals <- as.numeric(df$Loewe)
+pred_vals <- as.numeric(df$PredScores)
+
+true_class <- ifelse(true_vals <= threshold, 1, 0)
+pred_class <- ifelse(pred_vals <= threshold, 1, 0)
+
+conf <- caret::confusionMatrix(
+data = factor(pred_class, levels = c(0,1)),
+reference = factor(true_class, levels = c(0,1)),
+positive = "1"
+)
+
+idx <- is.finite(pred_vals) & is.finite(true_class)
+roc_obj <- pROC::roc(response = true_class[idx], predictor = pred_vals[idx])
+
+TP <- sum(true_class == 1 & pred_class == 1)
+TN <- sum(true_class == 0 & pred_class == 0)
+FP <- sum(true_class == 0 & pred_class == 1)
+FN <- sum(true_class == 1 & pred_class == 0)
+mcc <- (TP * TN - FP * FN) / sqrt((TP + FP)*(TP + FN)*(TN + FP)*(TN + FN))
+
+list(confusion = conf, roc = roc_obj, MCC = mcc)
+}
+
+metrics_hct  <- calc_regression_metrics(novel_hct2)
+metrics_ht29 <- calc_regression_metrics(novel_ht292)
+
+metrics_hct
+metrics_ht29
+
+class_hct  <- calc_classification_metrics(novel_hct2,  threshold = -0.25)
+class_ht29 <- calc_classification_metrics(novel_ht292, threshold = -0.25)
+
+class_hct$confusion
+class_hct$MCC
+
+class_ht29$confusion
+class_ht29$MCC
+
+```
+
+
+Figure 1a
+```{r}
+two_drug_res2 <- two_drug_res %>%
+mutate(across(c(Drug1, Drug2), clean_names_simple)) %>%
+mutate(Combo = combo_key(Drug1, Drug2))
+
+hct_2d2 <- hct_2d %>%
+mutate(Combo = combo_key(Drug1, Drug2))
+
+val_merged <- left_join(two_drug_res2, hct_2d2, by = "Combo")
+
+pearson_cor <- cor(val_merged$Experimental_res, val_merged$PredScores, use = "complete.obs")
+cutoff <- -0.2
+
+val_merged <- val_merged %>%
+mutate(
+ExpStrong  = Experimental_res <= cutoff,
+PredStrong = PredScores <= cutoff,
+DrugComboLabel = paste0(Drug1.x, " + ", Drug2.x)
+)
+
+p_val <- ggplot(val_merged, aes(x = Experimental_res, y = PredScores)) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) +
+labs(
+title = paste0("2-drug validation (Pearson r = ", round(pearson_cor, 2), ")"),
+x = "Experimental Loewe score",
+y = "Predicted score"
+)
+
+p_val
+save_pdf("MOREMICROBES_Validation_2drug_hct.pdf", p_val, width = 7, height = 5)
+
+p_val_labels <- ggplot(val_merged, aes(x = Experimental_res, y = PredScores)) +
+geom_point() +
+geom_text_repel(aes(label = DrugComboLabel), size = 3) +
+geom_smooth(method = "lm", se = FALSE) +
+labs(
+title = paste0("2-drug validation with labels (r = ", round(pearson_cor, 2), ")"),
+x = "Experimental Loewe score",
+y = "Predicted score"
+)
+
+p_val_labels
+save_pdf("MOREMICROBES_Validation_2drug_hct_withDrugNames.pdf", p_val_labels, width = 9, height = 6)
+
+caret::confusionMatrix(
+as.factor(val_merged$PredStrong),
+as.factor(val_merged$ExpStrong),
+positive = "TRUE"
+)
+
+```
+
+Figure 1e
+```{r}
+flux <- drug_flux
+
+bug_cols <- c("fuso_hct116", "sgg", "averonii", "ecoli", "ht29_fuso", "entero")
+drug_cols <- setdiff(colnames(flux)[-(1:3)], bug_cols)
+
+X <- flux[, c(bug_cols, drug_cols)]
+X_t <- t(X)
+X_scaled <- scale(X_t)
+
+# remove non-informative columns
+
+var_ok <- apply(X_scaled, 2, function(v) var(v, na.rm = TRUE) > 0)
+X_scaled <- X_scaled[, var_ok, drop = FALSE]
+finite_ok <- apply(X_scaled, 2, function(col) all(is.finite(col)))
+X_scaled <- X_scaled[, finite_ok, drop = FALSE]
+
+pca_res <- prcomp(X_scaled, center = TRUE, scale. = FALSE)
+pca_df <- data.frame(
+PC1 = pca_res$x[, 1],
+PC2 = pca_res$x[, 2],
+cond = c(rep("Bug", length(bug_cols)), rep("Drug", length(drug_cols))),
+name = c(bug_cols, drug_cols)
+)
+
+p_pca <- ggplot(pca_df, aes(PC1, PC2, color = cond, shape = cond)) +
+geom_point(size = 4, alpha = 0.8) +
+geom_text_repel(data = subset(pca_df, cond == "Bug"), aes(label = name), size = 3) +
+scale_shape_manual(values = c(Bug = 17, Drug = 16)) +
+labs(title = "PCA of flux profiles")
+
+p_pca
+save_pdf("pca_bugs_drugs.pdf", p_pca, width = 8, height = 6)
+
+set.seed(params$seed)
+umap_res <- umap::umap(X_scaled)
+umap_df <- data.frame(
+UMAP1 = umap_res$layout[, 1],
+UMAP2 = umap_res$layout[, 2],
+cond = pca_df$cond,
+name = pca_df$name
+)
+
+p_umap <- ggplot(umap_df, aes(UMAP1, UMAP2, color = cond, shape = cond)) +
+geom_point(size = 4, alpha = 0.8) +
+geom_text_repel(data = subset(umap_df, cond == "Bug"), aes(label = name), size = 3) +
+scale_shape_manual(values = c(Bug = 17, Drug = 16)) +
+labs(title = "UMAP of flux profiles")
+
+p_umap
+save_pdf("umap_bugs_drugs.pdf", p_umap, width = 8, height = 6)
+
+```
+
+
+Figure 2b and Fiure 1f
+```{r}
+tf <- topfeatures %>% slice_head(n = 50)
+
+filtered_flux <- drug_flux %>%
+filter(rxn %in% tf$rxn)
+
+flux_matrix <- filtered_flux[, -c(1:3)]
+rownames(flux_matrix) <- make.unique(filtered_flux$rxnName)
+
+flux_scaled <- t(scale(t(flux_matrix)))
+flux_scaled[!is.finite(flux_scaled)] <- 0
+
+pdf(path_out("MOREMICROBES_alldrugs_topfeatures_heatmap.pdf"), width = 14, height = 12)
+pheatmap(
+flux_scaled,
+scale = "none",
+clustering_distance_rows = "euclidean",
+clustering_distance_cols = "euclidean",
+clustering_method = "complete",
+main = "Top features (row z-scored)"
+)
+dev.off()
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Visualize Training Data - Supp Figure 1 
+```{r}
+hct_train <- read.csv("C:/Users/ajsto/OneDrive/Documents/Sriram Lab/Caramel_proj/Colon/HCT116/HCT_synergyxdbd_processed_added_hctends.csv")
+ht29_train <- read.csv("C:\\Users\\ajsto\\OneDrive\\Documents\\Sriram Lab\\Caramel_proj\\Colon\\HT29\\current_working_files\\HT29_synergyxdbd_processed.csv")
+
+head(hct_train)
+head(ht29_train)
+
+
+merged_data <- merge(hct_train, ht29_train, 
+                     by = c("Drug1", "Drug2"), 
+                     suffixes = c("_HCT", "_HT29"))
+correlation <- cor(merged_data$Loewe_HCT, merged_data$Loewe_HT29, use = "complete.obs")
+print(correlation)
+
+
+library(ggplot2)
+
+p2<-ggplot(merged_data, aes(x = Loewe_HCT, y = Loewe_HT29)) +
+  geom_point(color = "darkblue", alpha = 0.7) +
+  geom_smooth(method = "lm", color = "black", se = FALSE) +
+  labs(title = "Loewe Scores: HCT116 vs HT29",
+       x = "HCT116 Loewe",
+       y = "HT29 Loewe") +
+  theme_minimal()
+ggsave("training_scatter.pdf",
+       plot = p2,
+       device = cairo_pdf,  # for best font rendering
+       width = 8,
+       height = 6,
+       dpi = 300)
+
+
+merged_data <- merged_data %>%
+  mutate(
+    Drug1 = if_else(str_to_lower(Drug1) == "megestrolacetate", "megestrol", Drug1),
+    Drug2 = if_else(str_to_lower(Drug2) == "megestrolacetate", "megestrol", Drug2)
+  )
+
+library(dplyr)
+library(stringr)
+
+highlighted_drugs <- c("cabazitaxel", "megestrol", "fluorouracil", "methotrexate")
+
+merged_data <- merged_data %>%
+  mutate(
+    Drug1_lower = str_to_lower(Drug1),
+    Drug2_lower = str_to_lower(Drug2),
+    highlight = case_when(
+      Drug1_lower %in% highlighted_drugs ~ str_to_title(Drug1_lower),
+      Drug2_lower %in% highlighted_drugs ~ str_to_title(Drug2_lower),
+      TRUE ~ "Other"
+    )
+  )
+#ggsave('training_scatter.pdf')
+
+library(ggplot2)
+
+p<-ggplot() +
+  # Plot non-highlighted points first
+  geom_point(
+    data = subset(merged_data, highlight == "Other"),
+    aes(x = Loewe_HCT, y = Loewe_HT29),
+    color = "gray80",
+    alpha = 0.5,
+    size = 2.5
+  ) +
+  # Plot highlighted points on top
+  geom_point(
+    data = subset(merged_data, highlight != "Other"),
+    aes(x = Loewe_HCT, y = Loewe_HT29, color = highlight),
+    alpha = 0.9,
+    size = 3
+  ) +
+  geom_smooth(
+    data = merged_data,
+    aes(x = Loewe_HCT, y = Loewe_HT29),
+    method = "lm", se = FALSE, color = "black", linetype = "dashed"
+  ) +
+  scale_color_manual(
+    values = c(
+      "Cabazitaxel"  = "#1f77b4",
+      "Megestrol"    = "#ff7f0e",
+      "Fluorouracil" = "#2ca02c",
+      "Methotrexate" = "#d62728"
+    )
+  ) +
+  labs(
+    title = "Loewe Scores: HCT116 vs HT29",
+    x = "HCT116 Loewe",
+    y = "HT29 Loewe",
+    color = "Drug Highlight"
+  ) +
+  theme_minimal(base_size = 12)
+ggsave("training_scatter_highlights.pdf",
+       plot = p,
+       device = cairo_pdf,  # for best font rendering
+       width = 8,
+       height = 6,
+       dpi = 300)
+```
+
+
+
+Supp Figure 2
+```{r}
+library(dplyr)
+
+plc_flux <- drug_flux %>%
+  filter(grepl("phospholipase C", rxnName, ignore.case = TRUE))
+
+
+
+
+library(dplyr)
+library(pheatmap)
+library(tibble)  # for column_to_rownames
+
+# Subset phospholipase C reactions
+plc_flux <- drug_flux %>%
+  filter(grepl("phospholipase C", rxnName, ignore.case = TRUE))
+
+# Select columns and convert rxnName to rownames
+flux_matrix <- plc_flux %>%
+  select(rxnName, fluorouracil, methotrexate, fuso_hct116) %>%
+  column_to_rownames(var = "rxnName") %>%
+  as.matrix()
+
+# Replace NA, NaN, or Inf with 0 or another value
+flux_matrix_clean <- flux_matrix
+flux_matrix_clean[!is.finite(flux_matrix_clean)] <- 0  # replace Inf/NaN/NA with 0
+
+# Or, if you prefer to remove rows with any NA/Inf:
+flux_matrix_clean <- flux_matrix[apply(flux_matrix, 1, function(x) all(is.finite(x))), ]
+
+# Now plot the heatmap
+pheatmap(flux_matrix_clean,
+         scale = "row",
+         cluster_rows = TRUE,
+         cluster_cols = TRUE,
+         main = "Phospholipase C Flux Across Treatments")
+
+
+#### Erastin associated flux 
+filtered_flux <- drug_flux %>%
+  filter(
+    grepl("cys-gly", rxnName, ignore.case = TRUE) |
+    grepl("L-cystine/L-glutamate exchanger", rxnName, ignore.case = TRUE) |
+    grepl("ROS Detoxification", subSystem, ignore.case = TRUE)
+  )
+
+# Quick sanity check
+nrow(filtered_flux)
+head(filtered_flux[, c("rxnName", "subSystem")])
+
+# 2) Select columns to plot (add/remove treatments as you like)
+flux_matrix <- filtered_flux %>%
+  dplyr::select(fluorouracil, methotrexate, fuso_hct116)  # <- adjust if needed
+
+# 3) Use rxnName as rownames
+filtered_flux$rxnName <- make.unique(filtered_flux$rxnName)
+rownames(flux_matrix) <- filtered_flux$rxnName
+
+# Replace non-finite values with 0
+flux_matrix[!is.finite(as.matrix(flux_matrix))] <- 0
+
+# Drop rows with zero variance across treatments
+flux_matrix <- flux_matrix[apply(flux_matrix, 1, sd) != 0, ]
+
+# 4) Plot heatmap to PDF
+pdf("erastin_cysgly_ROS_heatmap.pdf", width = 8, height = 6)
+
+pheatmap(
+  flux_matrix,
+  scale         = "row",
+  cluster_rows  = TRUE,
+  cluster_cols  = TRUE,
+  main          = "Cys-Gly / Xc- / ROS Detox Reactions Across Treatments"
+)
+
+dev.off()
+
+
+
+
+topfeatures_raw <- read.csv(
+  "C:/Users/ajsto/OneDrive/Documents/MOREMICROBES_topfeatures_fusomodel.csv",
+  stringsAsFactors = FALSE
+)
+
+dim(topfeatures_raw)
+head(topfeatures_raw)
+colnames(topfeatures_raw)
+
+library(dplyr)
+library(stringr)
+
+# Example assuming columns are named "rxn" and "Direction" in the CSV
+topfeatures2 <- topfeatures_raw %>%
+  mutate(
+    rxn       = str_trim(as.character(rxn)),
+    Direction = str_trim(as.character(Direction))
+  ) %>%
+  filter(!is.na(rxn), rxn != "") %>%   # keep only valid rxns
+  mutate(
+    dir_num = ifelse(Direction == "pos", 1, -1)
+  )
+
+dim(topfeatures2)
+head(topfeatures2)
+
+# Make sure drug_flux IDs are clean
+drug_flux <- drug_flux %>%
+  mutate(
+    rxn     = str_trim(as.character(rxn)),
+    rxnName = str_trim(as.character(rxnName))
+  )
+
+microbe_cols <- c("fuso_hct116", "sgg", "averonii", "ecoli", "ht29_fuso", "entero")
+
+# Join topfeatures2 to drug_flux on rxn
+tf_flux <- topfeatures2 %>%
+  inner_join(
+    drug_flux %>% dplyr::select(rxn, all_of(microbe_cols)),
+    by = "rxn"
+  )
+
+nrow(tf_flux)
+head(tf_flux)
+
+microbe_alignment_vec <- sapply(microbe_cols, function(m) {
+  flux_vals <- tf_flux[[m]]
+  prod_vals <- flux_vals * tf_flux$dir_num
+  mean(prod_vals, na.rm = TRUE)
+})
+
+microbe_alignment <- data.frame(
+  microbe         = microbe_cols,
+  alignment_score = as.numeric(microbe_alignment_vec)
+)
+
+microbe_alignment
+
+library(ggplot2)
+
+ggplot(microbe_alignment,
+       aes(x = microbe, y = alignment_score, fill = alignment_score > 0)) +
+  geom_col() +
+  scale_fill_manual(values = c("red", "steelblue"),
+                    labels = c("Oppose", "Align")) +
+  labs(title = "Microbe Flux vs Top Feature Effects",
+       y = "Mean(flux × topfeature direction)",
+       x = "Microbe",
+       fill = "Effect") +
+  theme_minimal()
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(ggplot2)
+
+# --- Load original topfeatures CSV fresh ---
+topfeatures_raw <- read.csv(
+  "C:/Users/ajsto/OneDrive/Documents/MOREMICROBES_topfeatures_fusomodel.csv",
+  stringsAsFactors = FALSE
+)
+
+# Clean up reaction IDs and direction
+topfeatures_raw <- topfeatures_raw %>%
+  mutate(
+    rxn       = str_trim(as.character(rxn)),
+    Direction = str_trim(as.character(Direction))
+  ) %>%
+  filter(!is.na(rxn), rxn != "")
+
+# If the file is already sorted from most to least important, this is fine:
+top_n_features <- 15
+
+topfeatures2 <- topfeatures_raw %>%
+  mutate(dir_num = ifelse(Direction == "pos", 1L, -1L)) %>%
+  slice_head(n = top_n_features)
+
+dim(topfeatures2)
+head(topfeatures2)
+# Make sure flux IDs are clean
+drug_flux <- drug_flux %>%
+  mutate(
+    rxn     = str_trim(as.character(rxn)),
+    rxnName = str_trim(as.character(rxnName))
+  )
+
+# Microbe flux columns
+microbe_cols <- c("fuso_hct116", "sgg", "averonii", "ecoli", "ht29_fuso", "entero")
+
+# Join: keep only rows (reactions) in topfeatures2
+tf_flux <- topfeatures2 %>%
+  inner_join(
+    drug_flux %>% dplyr::select(rxn, all_of(microbe_cols)),
+    by = "rxn"
+  )
+
+nrow(tf_flux)
+head(tf_flux)
+
+tf_flux_long <- tf_flux %>%
+  dplyr::select(rxn, Direction, dir_num, all_of(microbe_cols)) %>%
+  pivot_longer(
+    cols      = all_of(microbe_cols),
+    names_to  = "microbe",
+    values_to = "flux"
+  ) %>%
+  mutate(
+    signed_flux = flux * dir_num,    # > 0 means going in same direction as "pos"
+    align = case_when(
+      is.na(flux) ~ NA_character_,
+      signed_flux > 0 ~ "align",
+      signed_flux < 0 ~ "oppose",
+      signed_flux == 0 ~ "neutral"
+    )
+  )
+alignment_table <- tf_flux_long %>%
+  dplyr::select(rxn, Direction, microbe, flux, signed_flux, align)
+
+alignment_table
+
+ggplot(tf_flux_long,
+       aes(x = microbe, y = rxn, fill = signed_flux)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(
+    low      = "red",
+    mid      = "white",
+    high     = "blue",
+    midpoint = 0,
+    na.value = "grey90"
+  ) +
+  labs(
+    title = "Alignment of Microbe Flux with Top Feature Directions",
+    x     = "Microbe",
+    y     = "Reaction (top features)",
+    fill  = "flux × dir"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+tf_flux_long <- tf_flux %>%
+  dplyr::select(rxnName, Direction, dir_num, all_of(microbe_cols)) %>%
+  pivot_longer(
+    cols = all_of(microbe_cols),
+    names_to = "microbe",
+    values_to = "flux"
+  ) %>%
+  mutate(
+    signed_flux = flux * dir_num,
+    align = case_when(
+      is.na(flux)        ~ NA_character_,
+      signed_flux > 0    ~ "align",
+      signed_flux < 0    ~ "oppose",
+      TRUE               ~ "neutral"
+    )
+  )
+ggplot(tf_flux_long,
+       aes(x = microbe, y = rxnName, fill = align)) +
+  geom_tile(color = "white") +
+  scale_fill_manual(
+    values = c(align = "steelblue", oppose = "red", neutral = "grey80"),
+    na.value = "grey90"
+  ) +
+  labs(
+    title = "Do Microbe Fluxes Align with Top Feature Directions?",
+    x = "Microbe",
+    y = "Reaction (rxnName)",
+    fill = "Alignment"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave('flux_microbes_topfeatures_alignment.pdf')
+```
+
+
+
+
+
+
+
+RECON3D Figures and Analysis 
+
+
+library(openxlsx) # or xlsx, whichever you're using
+
+ht29_2d <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\RECON3D_MOREMICROBES_ht29_2d_pred.xlsx")
+hct_2d <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\RECON3D_MOREMICROBES_averaged_10predictions_HCT116.xlsx")
+
+# single drug + fuso 
+hct_fuso <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\RECON3D_MOREMICROBES_hct_fuso.xlsx")
+head(hct_fuso)
+
+ht29_fuso <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\RECON3D_MOREMICROBES_ht29_fuso_1d.xlsx")
+head(ht29_fuso)
+
+# Validation results 
+two_drug_res <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\synergyfinder_validation_res.xlsx")
+fuso <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\fuso_lab_res.xlsx")
+fuso_synergy <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\fuso_validation.xlsx")
+
+# Flux Data 
+# drug_flux <- read.csv("C:\\Users\\ajsto\\OneDrive\\Documents\\flux_fuso.csv")
+drug_flux <- read.csv("C:\\Users\\ajsto\\OneDrive\\Documents\\drugflux_recon3d.csv")
+bug_flux <- read.csv("C:\\Users\\ajsto\\OneDrive\\Documents\\bugflux_recon3d.csv")
+topfeatures <- read.csv("C:\\Users\\ajsto\\OneDrive\\Documents\\RECON3D_MOREMICROBES_topfeatures_fusomodel.csv")
+
+```
+
+```{r}
+library(dplyr)
+library(pheatmap)
+
+# Read data
+drug_flux <- read.csv("C:\\Users\\ajsto\\OneDrive\\Documents\\drugflux_recon3d.csv")
+bug_flux  <- read.csv("C:\\Users\\ajsto\\OneDrive\\Documents\\bugflux_recon3d.csv")
+
+# Merge by 'rxn'
+merged_flux <- merge(drug_flux, bug_flux, by = "rxn", all = TRUE)
+
+# Filter for reactions with "phospholipase C" in rxnName
+filtered_flux <- merged_flux %>%
+  filter(grepl("phospholipase C", rxnName.x, ignore.case = TRUE))
+
+# Select only the desired columns for plotting
+flux_matrix <- filtered_flux %>%
+  select(fluorouracil, methotrexate, fuso_hct116)
+
+# Set row names as rxnName
+rownames(flux_matrix) <- filtered_flux$rxnName.x
+
+flux_matrix[!is.finite(as.matrix(flux_matrix))] <- 0
+
+# Remove rows with zero variance
+flux_matrix <- flux_matrix[apply(flux_matrix, 1, sd) != 0, ]
+
+# Remove rows with zero variance
+flux_matrix <- flux_matrix[apply(flux_matrix, 1, sd) != 0, ]
+
+# Open PDF device
+pdf("plc_recon3d_heatmap.pdf", width = 8, height = 6)
+
+# Plot heatmap
+pheatmap(flux_matrix,
+         scale = "row",
+         cluster_rows = TRUE,
+         cluster_cols = TRUE,
+         main = "Phospholipase C Flux Across Treatments")
+
+# Close PDF device
+dev.off()
+
+
+```
+
+
+
+
+
+
+
+
+
+```{r}
+two_drug_res$Drug1 <- tolower(two_drug_res$Drug1)
+two_drug_res$Drug2 <- tolower(two_drug_res$Drug2)
+
+hct_2d$Drug1 <- tolower(trimws(hct_2d$Drug1))
+hct_2d$Drug2 <- tolower(trimws(hct_2d$Drug2))
+
+two_drug_res$Drug1 <- tolower(trimws(two_drug_res$Drug1))
+two_drug_res$Drug2 <- tolower(trimws(two_drug_res$Drug2))
+
+
+
+normalize_pair <- function(drug1, drug2) {
+  sorted <- sort(c(drug1, drug2))
+  paste(sorted, collapse = "_")
+}
+
+# Apply for two_drug_res
+two_drug_res$Combo <- mapply(normalize_pair, two_drug_res$Drug1, two_drug_res$Drug2)
+
+# Apply for hct_2d
+hct_2d$Combo <- mapply(normalize_pair, hct_2d$Drug1, hct_2d$Drug2)
+
+
+
+# Merge the datasets by the combination key
+merged_data <- merge(two_drug_res, hct_2d, by = "Combo", all.x = TRUE)
+
+# View the first few rows
+head(merged_data)
+
+
+# Calculate correlations
+pearson_cor <- cor(merged_data$Experimental_res, merged_data$PredScores, use = "complete.obs", method = "pearson")
+spearman_cor <- cor(merged_data$Experimental_res, merged_data$PredScores, use = "complete.obs", method = "spearman")
+
+
+
+# Define cutoff
+cutoff <- -0.2
+
+merged_data$ExpStrong <- merged_data$Experimental_res <= cutoff
+merged_data$PredStrong <- merged_data$PredScores <= cutoff
+
+table(merged_data$ExpStrong, merged_data$PredStrong)
+
+# Simple agreement rate
+mean(merged_data$ExpStrong == merged_data$PredStrong, na.rm = TRUE)
+
+# Cohen’s Kappa
+library(caret)
+confusionMatrix(as.factor(merged_data$PredStrong), 
+                as.factor(merged_data$ExpStrong), 
+                positive = "TRUE")
+
+
+
+# Pearson correlation test (with p-value)
+pearson_test <- cor.test(merged_data$Experimental_res, merged_data$PredScores, 
+                         use = "complete.obs", method = "pearson")
+
+# Spearman correlation test (with p-value)
+spearman_test <- cor.test(merged_data$Experimental_res, merged_data$PredScores, 
+                          use = "complete.obs", method = "spearman")
+
+# View results
+print(pearson_test)
+print(spearman_test)
+
+
+library(ggplot2)
+# Create scatter plot
+ggplot(merged_data, aes(x = Experimental_res, y = PredScores)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  ggtitle(paste0("Experimental Validation of Predicted Scores\n",
+                 "Pearson Corr: ", round(pearson_cor, 2))) +
+  xlab("Experimental Loewe Score") +
+  ylab("Predicted Loewe Score")
+
+#ggsave('AUGUSTNEWvalidation_2drug_hct.png')
+
+
+
+# Add drug names 
+merged_data$DrugComboLabel <- paste(merged_data$Drug1.x, "+", merged_data$Drug2.x)
+
+library(ggrepel)
+ggplot(merged_data, aes(x = Experimental_res, y = PredScores)) +
+  geom_point() +
+  geom_text_repel(aes(label = DrugComboLabel), size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  ggtitle(paste0("Experimental Validation of Predicted Scores\n",
+                 "Pearson Corr: ", round(pearson_cor, 2))) +
+  xlab("Experimental Loewe Score") +
+  ylab("Predicted Loewe Score")
+ggsave('RECON3D_2dValidation.pdf')
+
+##############################################################################
+
+
+
+
+
+
+
+
+
+
+
+```
+
+```{r}
+library(stringr)
+library(dplyr)
+
+clean_interaction <- function(x) {
+  x %>%
+    tolower() %>%
+    trimws() %>%
+    # normalize separators like " + " and stray spaces
+    str_replace_all("\\s*\\+\\s*", " + ") %>%
+    str_replace_all("\\s+", " ") %>%
+    # fix common F. nucleatum variants (typos, punctuation, full genus)
+    str_replace_all("fusobacterium\\s*n[ui]cleat?um", "f. nucleatum") %>%
+    str_replace_all("\\bf\\.?\\s*n[ui]cleat?um\\b", "f. nucleatum") %>%
+    # optional: standardize drug synonyms if needed (examples)
+    str_replace_all("\\b5-?fu\\b", "fluorouracil") %>%
+    trimws()
+}
+
+# --- Clean both data sources consistently ---
+fuso_synergy <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\fuso_validation.xlsx")
+
+# Keep raw label for plotting, but make a cleaned key
+fuso_synergy <- fuso_synergy %>%
+  mutate(
+    X1 = as.character(X1),
+    Experimental = as.numeric(Experimental),  # ensure numeric if it’s read as text
+    Drug_clean = clean_interaction(X1)
+  )
+
+hct_fuso <- hct_fuso %>%
+  mutate(
+    Drug = as.character(Drug),
+    # strip suffixes like "_hct" from drug name and then append partner
+    Drug_base = tolower(gsub("_hct", "", Drug)),
+    Drug_clean = clean_interaction(paste0(Drug_base, " + f. nucleatum"))
+  )
+
+# --- Merge on the cleaned key ---
+fuso_synergy <- fuso_synergy %>%
+  left_join(hct_fuso %>% select(Drug_clean, PredScores), by = "Drug_clean") %>%
+  mutate(Predicted = PredScores) %>%
+  select(-PredScores)
+fuso_synergy$Predicted[fuso_synergy$X1 == "Fluorouracil + F. nulceatum"] <- -0.374357803
+fuso_synergy
+
+df = fuso_synergy
+pearson_cor <- cor(df$Experimental, df$Predicted, method = "pearson")
+
+library(ggplot2)
+
+ggplot(df, aes(x = Experimental, y = Predicted)) +
+  geom_point(color = "blue", size = 3) +
+  geom_text(aes(label = X1), vjust = -0.5, hjust = 0.5, size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  ggtitle(paste0("Experimental vs Predicted\n",
+                 "Pearson Correlation: ", round(pearson_cor, 2))) +
+  theme_minimal()
+
+
+
+df_no_first <- df[-1, ]  # remove first row
+pearson_cor2 <- cor(df_no_first$Experimental, df_no_first$Predicted)
+
+library(ggrepel)
+
+ggplot(df_no_first, aes(x = Experimental, y = Predicted)) +
+  geom_point(color = "black", size = 3) +
+  geom_text_repel(aes(label = X1), size = 3, max.overlaps = 20) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  ggtitle(paste0("Experimental Validation of Predicted Scores of Drug + F. nucleatum\n",
+                 "Pearson Correlation: ", round(pearson_cor2, 2))) +
+  theme_minimal()
+#ggsave('fuso_valid_nocab.png', bg = 'white')
+
+############################# Fuso Bar #############################################################
+library(ggplot2)
+library(tidyr)
+
+# Remove first row
+df_no_first <- df[-1, ]
+
+# Reshape to long format for barplot
+df_long <- pivot_longer(df_no_first, cols = c("Experimental", "Predicted"),
+                        names_to = "Type", values_to = "Score")
+
+# Optional: preserve factor order
+df_long$X1 <- factor(df_long$X1, levels = unique(df_no_first$X1))
+
+# Save as PDF
+pdf("RECON3D_fuso_validation.pdf", width = 10, height = 6)
+
+ggplot(df_long, aes(x = X1, y = Score, fill = Type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Experimental vs Predicted Drug Scores (with F. nucleatum)",
+       x = "Drug",
+       y = "Score",
+       fill = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+dev.off()
+
+
+
+```
+
+```{r}
+library(pheatmap)
+library(dplyr)
+
+topfeatures <- topfeatures[1:25, ]
+
+flux_df <- drug_flux
+
+# ---- Step 1: Prepare flux matrix (all drugs, no subsetting) ----
+filtered_flux <- flux_df %>%
+  filter(rxn %in% topfeatures$rxn)
+
+flux_matrix <- filtered_flux[, -c(1:3)]  
+rownames(flux_matrix) <- make.unique(filtered_flux$rxnName)
+
+# Scale rows
+flux_matrix_scaled <- t(scale(t(flux_matrix)))
+
+# Replace NaN/Inf with 0
+flux_matrix_scaled[!is.finite(flux_matrix_scaled)] <- 0
+
+# ---- Step 2: Compute drug classification from ht29_2d ----
+# Ensure lowercase consistency
+ht29_2d <- ht29_2d %>%
+  mutate(across(c(Drug1, Drug2), tolower))
+
+all_drugs <- colnames(flux_matrix_scaled)
+
+# For each drug, collect all PredScores where it appears in Drug1 or Drug2
+drug_synergy <- sapply(all_drugs, function(drug) {
+  scores <- ht29_2d %>%
+    filter(Drug1 == drug | Drug2 == drug) %>%
+    pull(PredScores)
+  
+  if (length(scores) == 0) {
+    return(NA)  # drug not in ht29_2d
+  } else {
+    return(median(scores, na.rm = TRUE))
+  }
+})
+
+# Drop NA drugs (those not in ht29_2d)
+valid_synergy <- drug_synergy[!is.na(drug_synergy)]
+
+# Find the cutoff where ~50% fall below/above
+cutoff <- median(valid_synergy, na.rm = TRUE)
+
+# Classify drugs based on this cutoff
+drug_class <- ifelse(drug_synergy < cutoff, "Synergistic", "Antagonistic")
+
+# Make annotation frame
+annotation_col <- data.frame(Synergy = drug_class)
+rownames(annotation_col) <- names(drug_synergy)
+
+
+# ---- Step 4: Plot heatmap ----
+pdf("RECON3D_topfeatures_annoated.pdf", width = 14, height = 12)
+
+pheatmap(flux_matrix_scaled,
+         scale = "none",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         clustering_distance_rows = "euclidean",
+         clustering_distance_cols = "euclidean",
+         clustering_method = "complete",
+         annotation_col = annotation_col,
+         main = "Top Features with Synergy/Antagonism",
+         fontsize_row = 6,
+         fontsize_col = 8)
+
+dev.off()
+
+```
+
+
+```{r}
+topfeatures_recon1 <- read.csv("C:\\Users\\ajsto\\OneDrive\\Documents\\MOREMICROBES_topfeatures_fusomodel.csv")
+ht29_2d_recon1 <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\MOREMICROBES_ht29_2d_pred.xlsx")
+hct_2d_recon1 <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\MOREMICROBES_averaged_10predictions_HCT116.xlsx")
+
+topfeatures <- read.csv("C:\\Users\\ajsto\\OneDrive\\Documents\\RECON3D_MOREMICROBES_topfeatures_fusomodel.csv")
+ht29_2d <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\RECON3D_MOREMICROBES_ht29_2d_pred.xlsx")
+hct_2d <- read.xlsx("C:\\Users\\ajsto\\OneDrive\\Documents\\RECON3D_MOREMICROBES_averaged_10predictions_HCT116.xlsx")
+```
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(ggpubr)
+
+# ---- HT29 ----
+ht29_merge <- ht29_2d %>%
+  inner_join(ht29_2d_recon1, by = c("Drug1", "Drug2"), suffix = c("_recon3d", "_recon1"))
+
+ggplot(ht29_merge, aes(x = PredScores_recon1, y = PredScores_recon3d)) +
+  geom_point(alpha = 0.6, color = "steelblue") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  stat_cor(method = "pearson", label.x = min(ht29_merge$PredScores_recon1),
+           label.y = max(ht29_merge$PredScores_recon3d),
+           aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~"))) +
+  labs(title = "HT29: RECON1 vs RECON3D",
+       x = "PredScores (RECON1)",
+       y = "PredScores (RECON3D)") +
+  theme_minimal()
+ggsave("recon1vsrecon3d_ht29.pdf")
+
+# ---- HCT116 ----
+hct_merge <- hct_2d %>%
+  inner_join(hct_2d_recon1, by = c("Drug1", "Drug2", "CellLine"), suffix = c("_recon3d", "_recon1"))
+
+ggplot(hct_merge, aes(x = PredScores_recon1, y = PredScores_recon3d)) +
+  geom_point(alpha = 0.6, color = "darkgreen") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  stat_cor(method = "pearson", label.x = min(hct_merge$PredScores_recon1),
+           label.y = max(hct_merge$PredScores_recon3d),
+           aes(label = paste(..r.label.., ..p.label.., sep = "~`,`~"))) +
+  labs(title = "HCT116: RECON1 vs RECON3D",
+       x = "PredScores (RECON1)",
+       y = "PredScores (RECON3D)") +
+  theme_minimal()
+ggsave("recon1vsrecon3d_hct116.pdf")
+
+```
+
+```{r}
+library(VennDiagram)
+
+# Reaction sets
+rxn_recon1 <- unique(topfeatures_recon1$rxnName)
+rxn_recon3d <- unique(topfeatures$rxnName)
+
+length(overlap_rxns)
+head(overlap_rxns)
+
+
+# Venn diagram
+venn.plot <- venn.diagram(
+  x = list(RECON1 = rxn_recon1, RECON3D = rxn_recon3d),
+  filename = NULL,
+  fill = c("skyblue", "orange"),
+  alpha = 0.5,
+  cex = 1.2,
+  cat.cex = 1.2,
+  cat.pos = 0,
+  cat.dist = 0.05
+)
+grid::grid.draw(venn.plot)
+
+```
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+topfeatures <- topfeatures[1:25, ]
+topfeatures_recon1 <- topfeatures_recon1[1:25, ]
+
+
+# Count how many reactions per subsystem in RECON1 topfeatures
+count_recon1 <- topfeatures_recon1 %>%
+  count(subSystem, name = "count_recon1")
+
+# Count how many reactions per subsystem in RECON3D topfeatures
+count_recon3d <- topfeatures %>%
+  count(subSystem, name = "count_recon3d")
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Convert subSystem to lowercase before counting
+count_recon1 <- topfeatures_recon1 %>%
+  mutate(subSystem = tolower(subSystem)) %>%
+  count(subSystem, name = "count_recon1")
+
+count_recon3d <- topfeatures %>%
+  mutate(subSystem = tolower(subSystem)) %>%
+  count(subSystem, name = "count_recon3d")
+
+# Merge counts side by side
+subsystem_counts <- full_join(count_recon1, count_recon3d, by = "subSystem") %>%
+  replace(is.na(.), 0)
+
+# Convert to long format for plotting
+subsystem_counts_long <- subsystem_counts %>%
+  pivot_longer(cols = c(count_recon1, count_recon3d),
+               names_to = "Model", values_to = "Count")
+
+# Plot
+ggplot(subsystem_counts_long, aes(x = reorder(subSystem, -Count), y = Count, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
+  labs(title = "Subsystem counts in RECON1 vs RECON3D top features",
+       x = "Subsystem",
+       y = "Number of reactions") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Count per subsystem in RECON1, ignoring empty or NA subSystem and normalizing case
+count_recon1 <- topfeatures_recon1 %>%
+  filter(!is.na(subSystem) & subSystem != "") %>%
+  mutate(subSystem = tolower(subSystem)) %>%
+  count(subSystem, name = "count_recon1")
+
+# Count per subsystem in RECON3D, ignoring empty or NA subSystem and normalizing case
+count_recon3d <- topfeatures %>%
+  filter(!is.na(subSystem) & subSystem != "") %>%
+  mutate(subSystem = tolower(subSystem)) %>%
+  count(subSystem, name = "count_recon3d")
+
+# Merge counts side by side
+subsystem_counts <- full_join(count_recon1, count_recon3d, by = "subSystem") %>%
+  replace(is.na(.), 0)
+
+# Convert to long format for plotting
+subsystem_counts_long <- subsystem_counts %>%
+  pivot_longer(cols = c(count_recon1, count_recon3d),
+               names_to = "Model", values_to = "Count")
+
+# Plot
+ggplot(subsystem_counts_long, aes(x = reorder(subSystem, -Count), y = Count, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
+  labs(title = "Subsystem counts in RECON1 vs RECON3D top features",
+       x = "Subsystem",
+       y = "Number of reactions") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(subsystem_counts_long, aes(x = reorder(subSystem, Count), y = Count, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) +
+  coord_flip() +  # horizontal bars
+  labs(title = "Subsystem counts in RECON1 vs RECON3D top features",
+       x = "Subsystem",
+       y = "Number of reactions") +
+  theme_minimal()
+
+ggsave("topfeatures_subsystemcount.pdf",
+       width = 10, height = 10, units = "in")
+
+```
+
+
+```{r}
+train_df = read.csv("C:\\Users\\ajsto\\OneDrive\\Documents\\all_training_combinations.csv")
+pred_df = hct_2d
+loewes_df = read.csv("C:\\Users\\ajsto\\Downloads\\HCT 116 (2).csv")
+
+library(dplyr)
+
+### STEP 1: Filter training data for HCT116
+train_filtered <- train_df %>%
+  filter(tolower(Drug3) == "hct116") %>%
+  mutate(across(c(Drug1, Drug2), tolower))
+
+### STEP 2: Lowercase Drug1 and Drug2 in pred_df
+pred_df <- pred_df %>%
+  mutate(across(c(Drug1, Drug2), tolower))
+
+### STEP 3: Create combo keys (sorted so A+B == B+A)
+combine_drugs <- function(a, b) {
+  apply(cbind(a, b), 1, function(x) paste(sort(x), collapse = "_"))
+}
+
+train_combos <- combine_drugs(train_filtered$Drug1, train_filtered$Drug2)
+pred_combos <- combine_drugs(pred_df$Drug1, pred_df$Drug2)
+
+### STEP 4: Identify combinations in pred_df that are NOT in training
+pred_df$combo_key <- pred_combos
+novel_combo_keys <- setdiff(pred_combos, train_combos)
+
+novel_preds <- pred_df %>%
+  filter(combo_key %in% novel_combo_keys)
+
+### STEP 5: Lowercase drug names in loewes_df and generate combo keys
+loewes_df <- loewes_df %>%
+  mutate(across(c(`Compound.A`, `Compound.B`), tolower))
+
+loewes_df$combo_key <- combine_drugs(loewes_df$`Compound.A`, loewes_df$`Compound.B`)
+
+### STEP 6: Merge novel predictions with Loewe scores
+novel_with_loewe <- novel_preds %>%
+  left_join(loewes_df %>% select(combo_key, Loewe), by = "combo_key")
+
+### RESULT
+print(novel_with_loewe)
+# write.csv(novel_with_loewe, "novel_predictions_with_loewe.csv", row.names = FALSE)
+
+library(ggplot2)
+library(ggpubr)
+
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+
+plot_data <- novel_with_loewe %>%
+  filter(!is.na(PredScores), !is.na(Loewe)) %>%
+  mutate(
+    PredScores = as.numeric(PredScores),
+    Loewe = as.numeric(Loewe)
+  )
+
+# Add a column with the absolute difference
+plot_data_diff <- plot_data %>%
+  mutate(abs_diff = abs(PredScores - Loewe)) %>%
+  arrange(desc(abs_diff))  # Sort from most different to least
+
+# View the top 10 most discordant combinations
+head(plot_data_diff, 10)
+
+
+p <- ggplot(plot_data, aes(x = PredScores, y = Loewe)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  stat_cor(method = "pearson",
+           label.x = min(plot_data$PredScores),
+           label.y = max(plot_data$Loewe)) +
+  theme_minimal() +
+  labs(title = "Predicted Synergy vs Loewe Scores",
+       x = "Predicted Synergy Score",
+       y = "Loewe Score")
+print(p)
+# Save the plot as a PDF file
+ggsave("RECON3D_predicted_vs_loewe.pdf", plot = p, width = 7, height = 5)
+
+
+
+
+
+# Filter for combinations involving cabazitaxel
+plot_data_cab <- plot_data %>%
+  filter(Drug1 == "cabazitaxel" | Drug2 == "cabazitaxel")
+plot_data_cab <- plot_data_cab %>%
+  mutate(partner_drug = ifelse(Drug1 == "cabazitaxel", Drug2, Drug1))
+
+
+# Plot only cabazitaxel combinations
+library(ggrepel)  # Helps avoid overlapping labels
+
+p_cab <- ggplot(plot_data_cab, aes(x = PredScores, y = Loewe)) +
+  geom_point(alpha = 0.7, color = "darkred") +
+  geom_text_repel(aes(label = partner_drug), size = 3) +  # <- labels
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  stat_cor(method = "pearson",
+           label.x = min(plot_data_cab$PredScores),
+           label.y = max(plot_data_cab$Loewe)) +
+  theme_minimal() +
+  labs(title = "Cabazitaxel: Predicted Synergy vs Loewe Scores",
+       x = "Predicted Synergy Score",
+       y = "Loewe Score")
+
+print(p_cab)
+
+
+# Save plot (optional)
+#ggsave("NEWcabazitaxel_pred_vs_loewe.pdf", plot = p_cab, width = 7, height = 5)
+
+
+############## Aucuracy Metrics ##########################################
+ # REGRESSION METRICS
+library(Metrics)
+
+# True values (Loewe) and predictions (PredScores)
+true_vals <- plot_data$Loewe
+pred_vals <- plot_data$PredScores
+
+rmse_val <- rmse(true_vals, pred_vals)
+mae_val <- mae(true_vals, pred_vals)
+r2_val <- cor(true_vals, pred_vals)^2  # R² from Pearson correlation
+
+cat("RMSE: ", rmse_val, "\n")
+cat("MAE: ", mae_val, "\n")
+cat("R²: ", r2_val, "\n")
+# CLASSIFICATION METRICS
+library(caret)
+library(pROC)
+
+# CLASSIFICATION METRICS
+library(caret)
+library(pROC)
+
+# Define thresholds for synergy classification
+threshold <- -0.25
+
+# Binarize predictions and ground truth
+true_class <- ifelse(plot_data$Loewe <= threshold, 1, 0)
+pred_class <- ifelse(plot_data$PredScores <= threshold, 1, 0)
+print(true_class)
+print(pred_class)
+packageVersion("caret")
+confusionMatrix
+# Confusion matrix
+conf_mat <- caret::confusionMatrix(data = factor(pred_class, levels = c(0,1)),
+                                   reference = factor(true_class, levels = c(0,1)),
+                                   positive = "1")
+
+
+print(conf_mat)
+
+library(pROC)
+
+# Step 1: Clean your inputs
+true_class_clean <- as.numeric(as.character(true_class))  # Make sure it's numeric
+pred_scores_clean <- as.numeric(plot_data$PredScores)     # Also ensure it's numeric
+
+# Step 2: Remove NA values
+idx <- !is.na(true_class_clean) & !is.na(pred_scores_clean)
+str(true_class)
+unique(true_class)
+attributes(true_class)
+class(true_class)
+table(true_class)
+
+str(roc_obj$response)
+unique(roc_obj$response)
+class(roc_obj$response)
+
+
+# Step 3: Run ROC
+roc_obj <- roc(response = true_class_clean[idx], predictor = pred_scores_clean[idx])
+print(roc_obj)
+
+conf_mat <- caret::confusionMatrix(data = factor(pred_class, levels = c(0,1)),
+                                   reference = factor(true_class, levels = c(0,1)),
+                                   positive = "1")
+
+
+print(conf_mat)
+
+
+
+# Step 3: Run ROC
+roc_obj <- roc(response = true_class_clean[idx], predictor = pred_scores_clean[idx])
+print(roc_obj)
+
+TP <- sum(true_class == 1 & pred_class == 1)
+TN <- sum(true_class == 0 & pred_class == 0)
+FP <- sum(true_class == 0 & pred_class == 1)
+FN <- sum(true_class == 1 & pred_class == 0)
+
+# Convert to numeric to avoid integer overflow
+TP <- as.numeric(TP)
+TN <- as.numeric(TN)
+FP <- as.numeric(FP)
+FN <- as.numeric(FN)
+
+mcc_val <- (TP * TN - FP * FN) / sqrt((TP + FP)*(TP + FN)*(TN + FP)*(TN + FN))
+cat("MCC:", mcc_val, "\n")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# same but for ht29 
+loewe_df = read.csv("C:\\Users\\ajsto\\Downloads\\HT-29 (3).csv")
+
+library(dplyr)
+
+### STEP 1: Filter training data for HCT116
+library(stringr)  # for str_trim
+
+train_filtered <- train_df %>%
+  filter(is.na(Drug3) | str_trim(Drug3) == "") %>%  # keep rows where Drug3 is NA or empty/blank
+  mutate(across(c(Drug1, Drug2), tolower))
+
+
+### STEP 2: Lowercase Drug1 and Drug2 in pred_df
+pred_df = ht29_2d
+
+pred_df <- pred_df %>%
+  mutate(across(c(Drug1, Drug2), tolower))
+
+### STEP 3: Create combo keys (sorted so A+B == B+A)
+combine_drugs <- function(a, b) {
+  apply(cbind(a, b), 1, function(x) paste(sort(x), collapse = "_"))
+}
+
+train_combos <- combine_drugs(train_filtered$Drug1, train_filtered$Drug2)
+pred_combos <- combine_drugs(pred_df$Drug1, pred_df$Drug2)
+
+### STEP 4: Identify combinations in pred_df that are NOT in training
+pred_df$combo_key <- pred_combos
+novel_combo_keys <- setdiff(pred_combos, train_combos)
+
+novel_preds <- pred_df %>%
+  filter(combo_key %in% novel_combo_keys)
+
+### STEP 5: Lowercase drug names in loewes_df and generate combo keys
+loewes_df <- loewes_df %>%
+  mutate(across(c(`Compound.A`, `Compound.B`), tolower))
+
+loewes_df$combo_key <- combine_drugs(loewes_df$`Compound.A`, loewes_df$`Compound.B`)
+
+### STEP 6: Merge novel predictions with Loewe scores
+novel_with_loewe <- novel_preds %>%
+  left_join(loewes_df %>% select(combo_key, Loewe), by = "combo_key")
+
+### RESULT
+print(novel_with_loewe)
+# write.csv(novel_with_loewe, "novel_predictions_with_loewe.csv", row.names = FALSE)
+
+library(ggplot2)
+library(ggpubr)
+
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+
+plot_data <- novel_with_loewe %>%
+  filter(!is.na(PredScores), !is.na(Loewe)) %>%
+  mutate(
+    PredScores = as.numeric(PredScores),
+    Loewe = as.numeric(Loewe)
+  )
+
+# Add a column with the absolute difference
+plot_data_diff <- plot_data %>%
+  mutate(abs_diff = abs(PredScores - Loewe)) %>%
+  arrange(desc(abs_diff))  # Sort from most different to least
+
+# View the top 10 most discordant combinations
+head(plot_data_diff, 10)
+
+
+p <- ggplot(plot_data, aes(x = PredScores, y = Loewe)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  stat_cor(method = "pearson",
+           label.x = min(plot_data$PredScores),
+           label.y = max(plot_data$Loewe)) +
+  theme_minimal() +
+  labs(title = "Predicted Synergy vs Loewe Scores",
+       x = "Predicted Synergy Score",
+       y = "Loewe Score")
+print(p)
+ggsave("RECON3D_predicted_vs_loewe_ht29.pdf", plot = p, width = 7, height = 5)
+
+
+
+############################# Test Metrics ##################################
+ # REGRESSION METRICS
+library(Metrics)
+
+# True values (Loewe) and predictions (PredScores)
+true_vals <- plot_data$Loewe
+pred_vals <- plot_data$PredScores
+
+rmse_val <- rmse(true_vals, pred_vals)
+mae_val <- mae(true_vals, pred_vals)
+r2_val <- cor(true_vals, pred_vals)^2  # R² from Pearson correlation
+
+cat("RMSE: ", rmse_val, "\n")
+cat("MAE: ", mae_val, "\n")
+cat("R²: ", r2_val, "\n")
+# CLASSIFICATION METRICS
+library(caret)
+library(pROC)
+
+# CLASSIFICATION METRICS
+library(caret)
+library(pROC)
+
+# Define thresholds for synergy classification
+threshold <- -0.25
+
+# Binarize predictions and ground truth
+true_class <- ifelse(plot_data$Loewe <= threshold, 1, 0)
+pred_class <- ifelse(plot_data$PredScores <= threshold, 1, 0)
+packageVersion("caret")
+confusionMatrix
+# Confusion matrix
+conf_mat <- caret::confusionMatrix(data = factor(pred_class, levels = c(0,1)),
+                                   reference = factor(true_class, levels = c(0,1)),
+                                   positive = "1")
+
+
+print(conf_mat)
+
+library(pROC)
+
+# Step 1: Clean your inputs
+true_class_clean <- as.numeric(as.character(true_class))  # Make sure it's numeric
+pred_scores_clean <- as.numeric(plot_data$PredScores)     # Also ensure it's numeric
+
+# Step 2: Remove NA values
+idx <- !is.na(true_class_clean) & !is.na(pred_scores_clean)
+str(true_class)
+unique(true_class)
+attributes(true_class)
+class(true_class)
+table(true_class)
+
+str(roc_obj$response)
+unique(roc_obj$response)
+class(roc_obj$response)
+
+
+# Step 3: Run ROC
+roc_obj <- roc(response = true_class_clean[idx], predictor = pred_scores_clean[idx])
+print(roc_obj)
+
+TP <- sum(true_class == 1 & pred_class == 1)
+TN <- sum(true_class == 0 & pred_class == 0)
+FP <- sum(true_class == 0 & pred_class == 1)
+FN <- sum(true_class == 1 & pred_class == 0)
+
+mcc_val <- (TP * TN - FP * FN) / sqrt((TP + FP)*(TP + FN)*(TN + FP)*(TN + FN))
+cat("MCC:", mcc_val, "\n")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+library(dplyr)
+library(stringr)
+
+# Standardize drug names and cell lines to lowercase
+pred_df <- pred_df %>%
+  mutate(across(c(Drug1, Drug2, Cell), tolower))
+
+train_df <- train_df %>%
+  mutate(across(c(Drug1, Drug2, Drug3), tolower))
+
+# Ensure consistent column names for joining
+train_df_renamed <- train_df %>%
+  rename(Cell = Drug3)
+
+# Inner join on all three columns
+matching_combos <- inner_join(pred_df, train_df_renamed, 
+                              by = c("Drug1", "Drug2", "Cell"))
+
+# View matching combinations
+print(matching_combos)
+```
+
+```{r}
+library(pheatmap)
+library(dplyr)
+
+# Assuming topfeatures and flux_df already loaded
+topfeatures <- topfeatures[1:25, ]
+
+# ---- Step 1: Filter flux_df for top features and inositol reactions ----
+filtered_flux <- flux_df %>%
+  filter(rxn %in% topfeatures$rxn) %>%
+  filter(grepl("inositol", rxnName, ignore.case = TRUE))
+
+# ---- Step 2: Subset flux matrix for methotrexate and fluorouracil ----
+flux_matrix <- filtered_flux[, c("rxn", "rxnName", "methotrexate", "fluorouracil")]
+rownames(flux_matrix) <- make.unique(flux_matrix$rxnName)
+flux_matrix <- flux_matrix[, -c(1:2)]  # remove rxn/rxnName columns
+
+# ---- Step 3: Scale rows ----
+flux_matrix_scaled <- t(scale(t(flux_matrix)))
+flux_matrix_scaled[!is.finite(flux_matrix_scaled)] <- 0  # replace NaN/Inf
+
+# ---- Step 4: Prepare drug annotation for these two drugs ----
+annotation_col <- data.frame(
+  Synergy = drug_class[c("methotrexate", "fluorouracil")]
+)
+rownames(annotation_col) <- c("methotrexate", "fluorouracil")
+
+# ---- Step 5: Plot heatmap ----
+pheatmap(
+  flux_matrix_scaled,
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,
+  annotation_col = annotation_col,
+  fontsize_row = 10,
+  main = "Inositol-related reactions: Methotrexate vs Fluorouracil"
+)
+```
+
