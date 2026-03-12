@@ -17,7 +17,7 @@ Chandrasekaran Research Group - https://systemsbiologylab.org/
 Contact: csriram@umich.edu
 
 # Dependencies 
-Using CRC-CARAMeL requires the installation of the following packages/programs. 
+Using OMG-ML requires the installation of the following packages/programs. 
 1. [MATLAB]([url](https://www.mathworks.com/products/matlab.html)) 2019b or higher
 2. [Gurobi]([url](https://www.gurobi.com/)) optimization solver
 3. [COBRA Toolbox]([url](https://github.com/opencobra/cobratoolbox))
