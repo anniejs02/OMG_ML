@@ -28,7 +28,7 @@ Install the folders and packages included by cloning this repository to your loc
 git clone https://github.com/anniejs02/OMG_ML.git
 
 # Instructions 
-See CRC_CARAMEL_main.m or CRC_CARAMEL_main.mlx for step-by-step instructions in applying CRC_CARAMeL. To run those files in MATLAB, you must download the contents of 'data' and 'empty_prediction_files' and have an appropriate human metabolic model. 
+See OMGML_main.m or OMGML_main.mlx for step-by-step instructions in applying OMG-ML. To run those files in MATLAB, you must download the contents of 'data' and 'empty_prediction_files' and have an appropriate human metabolic model. 
 
 # Files
 
