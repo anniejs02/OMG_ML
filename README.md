@@ -4,7 +4,9 @@ This tool allows for predicting the effect of multi-drug combinations on colorec
 
 
 
+<p align="center">
   <img width="601" height="598" alt="image" src="https://github.com/user-attachments/assets/169f4028-60c8-49ad-a38c-097626af8598" />
+</p>
 
 
 This model can be used along with the included drug combination files (sourced from [SynergyxDB]([url](https://www.synergxdb.ca/))). Additional drug or microbial treatments can also be added to make novel predictions by adding log fold changes of gene expression in treatment compared to control to the included gene expression file. 
