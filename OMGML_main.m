@@ -40,7 +40,7 @@ folder = erase(which('CRC_CARAMeL_main.mlx'), 'CRC_CARAMeL_main.mlx');
 % score (Loewe)
 
 train_all = readtable("all_training_combinations.csv");
-ht29_GEMmodel = load('recon1_duarte.mat')
+ht29_GEMmodel = load('Recon1_Duarte.mat')
 %% 
 % 
 %% Generate Flux
