@@ -31,7 +31,12 @@ Install the folders and packages included by cloning this repository to your loc
 git clone https://github.com/anniejs02/OMG_ML.git
 
 # Instructions 
-See OMGML_main.m or OMGML_main.mlx for step-by-step instructions in applying OMG-ML. To run those files in MATLAB, you must download the contents of 'data' and 'empty_prediction_files' and have an appropriate human metabolic model. 
+See OMGML_main.m or OMGML_main.mlx for step-by-step instructions in applying OMG-ML. The code outlines the following steps: 
+1. Load in the RECON1 human metabolic model (Recon1_Duarte.mat)
+2. Constrain RECON1 using transcriptomics from drug treatment and co-cultures
+3. Generate features from constrained models
+4. Train OMG-ML model using known drug combination synergies
+5. Employ model
 
 # Files
 
